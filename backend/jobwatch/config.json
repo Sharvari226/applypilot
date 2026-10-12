@@ -1,0 +1,18 @@
+{
+  "greenhouse": ["anthropic", "databricks", "stripe", "cloudflare", "figma", "scaleai", "groww"],
+  "lever": ["palantir"],
+  "ashby": ["openai", "notion", "ramp", "cohere"],
+  "remote_boards": ["remotive", "remoteok"],
+  "adzuna_queries": ["machine learning intern", "software engineer intern", "software engineer fresher", "data science intern"],
+  "title_keywords": [
+    "intern", "internship", "graduate", "new grad", "fresher", "associate",
+    "machine learning", "ml", "ai", "nlp", "research", "data science", "deep learning",
+    "quantitative", "quant", "applied scientist",
+    "software engineer", "software developer", "software development engineer", "sde",
+    "backend", "full stack", "full-stack", "fullstack"
+  ],
+  "exclude_keywords": ["senior", "sr", "staff", "principal", "director", "manager", "lead", "head"],
+  "location_keywords": ["india", "pune", "bangalore", "bengaluru", "hyderabad", "mumbai", "delhi", "gurgaon", "gurugram", "noida", "chennai", "remote", "worldwide", "anywhere", "global", "apac", "asia"],
+  "exclude_regions": ["us", "usa", "united states", "canada", "uk", "united kingdom", "europe", "emea", "germany", "france", "latam"],
+  "my_skills": ["python", "pytorch", "tensorflow", "scikit-learn", "transformers", "huggingface", "hugging face", "langchain", "fastapi", "docker", "sql", "mlflow", "nlp", "ocr", "graph neural", "gnn", "streamlit", "pandas", "numpy", "c++", "computer vision", "differential privacy", "javascript", "react"]
+}
