@@ -12,8 +12,17 @@ BASE = Path(__file__).parent  # paths work no matter where you run it from
 CONFIG = json.loads((BASE / "config.json").read_text(encoding="utf-8"))
 SEEN_FILE = BASE / "seen.json"
 OUT_FILE = BASE / "new_jobs.csv"
-HEADERS = {"User-Agent": "personal-job-watcher/0.2"}
+HEADERS = {"User-Agent": "personal-job-watcher/0.3"}
 
+ENTRY_TITLE = [
+    "intern", "internship", "graduate", "new grad", "fresher", "trainee",
+    "apprentice", "early career", "campus", "junior", "entry level", "entry-level",
+]
+ENTRY_CUES = (
+    r"entry[- ]level|new[- ]grad|recent graduate|fresh graduate|fresher|early[- ]career"
+    r"|campus|currently (?:enrolled|pursuing)|\b0\s*(?:-|–|to)\s*[12]\s*years"
+    r"|no (?:prior |previous )?experience"
+)
 RESTRICTION_PATTERNS = [
     r"authori[sz]ed to work in the (?:united states|u\.s\.|us|uk|united kingdom|canada|eu)\b",
     r"\b(?:us|u\.s\.|usa|uk|canada) only\b",
@@ -146,15 +155,32 @@ def matches(job):
     return location_ok(job["location"].lower())
 
 
+def years_required(job):
+    """Largest minimum-years figure found within 100 characters of the word 'experience'."""
+    text = job["description"].lower()
+    best = 0
+    pattern = r"(\d{1,2})\s*\+?\s*(?:(?:-|–|to)\s*\d{1,2}\s*)?(?:years?|yrs?)"
+    for m in re.finditer(pattern, text):
+        window = text[max(0, m.start() - 100): m.end() + 100]
+        if "experience" in window:
+            best = max(best, int(m.group(1)))
+    return best
+
+
+def entry_level_ok(job, yrs):
+    if not CONFIG.get("strict_entry_level", True):
+        return True
+    if yrs >= 2:
+        return False
+    title = job["title"].lower()
+    if any(has_word(title, k) for k in ENTRY_TITLE):
+        return True
+    return re.search(ENTRY_CUES, job["description"].lower()) is not None
+
+
 def skill_hits(job):
     text = (job["title"] + " " + job["description"]).lower()
     return [s for s in CONFIG["my_skills"] if s in text]
-
-
-def years_required(job):
-    text = job["description"].lower()
-    nums = [int(n) for n in re.findall(r"(\d{1,2})\s*\+?\s*(?:-\s*\d+\s*)?years?[^.]{0,40}experience", text)]
-    return max(nums) if nums else 0
 
 
 def restriction_flags(job):
@@ -165,6 +191,16 @@ def restriction_flags(job):
         if m:
             found.append(m.group(0))
     return "; ".join(found)
+
+
+def grad_years(job):
+    """Years mentioned near 'graduat' / 'class of' (e.g. '2027'), for eligibility triage."""
+    text = job["description"].lower()
+    found = set()
+    for m in re.finditer(r"graduat|class of", text):
+        window = text[max(0, m.start() - 60): m.end() + 80]
+        found.update(re.findall(r"\b(20\d{2})\b", window))
+    return ",".join(sorted(found))
 
 
 def main():
@@ -184,6 +220,9 @@ def main():
             for job in fetch(arg):
                 if job["id"] in seen or not matches(job):
                     continue
+                yrs = years_required(job)
+                if not entry_level_ok(job, yrs):
+                    continue
                 hits = skill_hits(job)
                 new_rows.append(
                     {
@@ -192,20 +231,19 @@ def main():
                         "location": job["location"],
                         "skill_hits": len(hits),
                         "skills_mentioned": ", ".join(hits),
-                        "years_required": years_required(job),
+                        "years_required": yrs,
                         "restriction_flags": restriction_flags(job),
+                        "grad_years": grad_years(job),
                         "url": job["url"],
                         "source": name,
                         "found_on": datetime.now().strftime("%Y-%m-%d"),
-                        "grad_years": grad_years(job),
                     }
                 )
                 seen.add(job["id"])
         except Exception as e:
             print(f"WARNING {name}/{arg}: {e}")
 
-    # realistic roles first: low experience requirement, then most skill matches
-    new_rows.sort(key=lambda r: (r["years_required"] >= 3, -r["skill_hits"]))
+    new_rows.sort(key=lambda r: -r["skill_hits"])
     if new_rows:
         with OUT_FILE.open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(new_rows[0].keys()))
@@ -214,14 +252,6 @@ def main():
     SEEN_FILE.write_text(json.dumps(sorted(seen)))
     print(f"{len(new_rows)} new matching jobs -> {OUT_FILE if new_rows else 'nothing written'}")
 
-def grad_years(job):
-    """Years mentioned near 'graduat' / 'class of' (e.g. '2027'), for eligibility triage."""
-    text = job["description"].lower()
-    found = set()
-    for m in re.finditer(r"graduat|class of", text):
-        window = text[max(0, m.start() - 60): m.end() + 80]
-        found.update(re.findall(r"\b(20\d{2})\b", window))
-    return ",".join(sorted(found))
 
 if __name__ == "__main__":
     main()
